@@ -10,7 +10,7 @@ class User(BaseMixin, DateAudit):
   email = db.Column(db.String(256), index=True, unique=True)
   password_hash = db.Column(db.String(128))
   picture_id = db.Column(db.Integer, db.ForeignKey("picture.id"))
-  avatar = db.relationship("Picture", backref=backref("user", uselist=False))
+  avatar = db.relationship("Picture", backref=db.backref("user", uselist=False))
   posts = db.relationship("Post", backref="author", lazy="dynamic")
   comments = db.relationship("Comment", backref="author", lazy="dynamic")
   bio = db.Column(db.String(256))
@@ -18,7 +18,7 @@ class User(BaseMixin, DateAudit):
       "User",
       secondary=followers,
       primaryjoin=(followers.c.follower_id == id),
-      secondaryjoin=(followers.c.follwed_id == id),
+      secondaryjoin=(followers.c.followed_id == id),
       backref=db.backref("followers", lazy="dynamic"), lazy="dynamic")
 
   ATTR_FIELDS = ["username", "email", "bio"]
