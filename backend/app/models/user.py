@@ -1,6 +1,7 @@
 from .common import BaseMixin, DateAudit
 from .tables import followers
-from app import db
+from app import db, photos
+from flask import url_for
 from werkzeug.security import generate_password_hash, check_password_hash
 
 class User(BaseMixin, DateAudit):
@@ -8,6 +9,8 @@ class User(BaseMixin, DateAudit):
   username = db.Column(db.String(64), index=True, unique=True)
   email = db.Column(db.String(256), index=True, unique=True)
   password_hash = db.Column(db.String(128))
+  picture_id = db.Column(db.Integer, db.ForeignKey("picture.id"))
+  avatar = db.relationship("Picture", backref=backref("user", uselist=False))
   posts = db.relationship("Post", backref="author", lazy="dynamic")
   comments = db.relationship("Comment", backref="author", lazy="dynamic")
   bio = db.Column(db.String(256))
@@ -29,10 +32,13 @@ class User(BaseMixin, DateAudit):
   def check_password(self, password):
     return check_password_hash(self.password_hash, password)
 
-  def avatar(self, size):
+  def avatar(self):
+    if self.avatar is not None:
+      return photos.url(self.avatar.path)
+
     digest = md5(self.email.lower().encode('utf-8')).hexdigest()
     return 'https://www.gravatar.com/avatar/{}?d=identicon&s={}'.format(
-      digest, size)
+      digest, 128)
 
   def follow(self, user):
     if not self.is_following(user):
@@ -45,3 +51,19 @@ class User(BaseMixin, DateAudit):
   def is_following(self, user):
     return self.followed.filter(
       followers.c.followed_id == user.id).count() > 0
+
+  def to_dict(self):
+    return {
+      "username": self.username,
+      "email": self.email,
+      "bio": self.bio,
+      "avatar": self.avatar(),
+      "audit_dates": self.audit_dates(),
+      "_links": {
+        "posts": url_for("user_posts", username=self.username),
+        "comments": url_for("user_comments", username=self.username),
+        "followers": url_for("user_followers", username=self.username),
+        "following": url_for("user_following", username=self.username)
+      }
+    }
+

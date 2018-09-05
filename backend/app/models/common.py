@@ -50,7 +50,7 @@ class DateAudit(object):
   updated_at = db.Column(
       db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-  def audit_dates(self) -> dict:
+  def audit_dates(self):
     """
     Returns date properties for audit
     """

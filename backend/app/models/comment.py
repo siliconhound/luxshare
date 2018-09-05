@@ -7,5 +7,16 @@ class Comment(BaseMixin, DateAudit, db.Model):
   body = db.Column(db.String(256))
   user_id = db.Column(db.Integer, db.ForeignKey("user.id"))
 
+  ATTR_FIELDS = ["body"]
+
   def __repr__(self):
     return "<Comment {}>".format(self.body)
+
+  def to_dict(self):
+    return {
+      "public_id": self.public_id,
+      "body": self.body,
+      "author_username": self.author.username,
+      "audit_dates": self.audit_dates()
+    }
+
