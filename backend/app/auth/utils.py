@@ -1,8 +1,9 @@
 import jwt
 import re
-from flask import current_app
+from flask import current_app, request, jsonify
 from datetime import datetime, timedelta
 from app.models.blacklist_token import BlacklistToken
+from app import db
 
 
 def generate_token(user_id, expires_in=3600):
@@ -39,19 +40,37 @@ def verify_token(token):
   :param token: token to verify
   """
 
-  jwt_claims = {}
   secret_key = current_app.config["JWT_SECRET_KEY"]
   if is_token_revoked(token):
     return False
 
   try:
-    jwt_claims = jwt.decode(token, secret_key, algoritms=["HS256"])
+    jwt.decode(token, secret_key, algoritms=["HS256"])
   except:
     return False
 
   return True
 
 
+def revoke_token(token):
+  if not is_token_revoked(token):
+    token = BlacklistToken(token=token)
+    db.session.add(token)
+    db.session.commit()
+
+
 def is_email(string):
   match = re.match(r"[^@]+@[^@]+\.[^@]+", string)
   return match is not None
+
+
+def login_required(f):
+
+  def f_wrapper(*args, **kwargs):
+    if "auth_token" in request.cookies and verify_token(
+        request.cookies.get("auth_token")):
+      return f(*args, **kwargs)
+    
+    return jsonify({"message": "please log in"}), 401
+  
+  return f_wrapper
