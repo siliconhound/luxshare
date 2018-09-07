@@ -43,7 +43,6 @@ class BaseMixin(object):
       if field in data:
         setattr(self, field, data[field])
 
-
 class DateAudit(object):
 
   created_at = db.Column(db.DateTime, default=datetime.utcnow)

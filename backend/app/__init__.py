@@ -19,8 +19,11 @@ def create_app(config_class=Config):
   cors.init_app(app)
   configure_uploads(app, photos)
 
-  from app.api import bp as api_bp
-  app.register_blueprint(api_bp, url_prefix="/api")
+  # from app.api import bp as api_bp
+  # app.register_blueprint(api_bp, url_prefix="/api")
+
+  from app.auth import bp as auth_bp
+  app.register_blueprint(auth_bp, url_prefix="/api/auth")
 
   return app
 

@@ -6,6 +6,7 @@ class Comment(BaseMixin, DateAudit, db.Model):
   public_id = db.Column(db.String(256), index=True, unique=True)
   body = db.Column(db.String(256))
   user_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+  post_id = db.Column(db.Integer, db.ForeignKey("post.id"))
 
   ATTR_FIELDS = ["body"]
 

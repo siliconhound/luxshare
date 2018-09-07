@@ -4,7 +4,7 @@ from app import db, photos
 from flask import url_for
 from werkzeug.security import generate_password_hash, check_password_hash
 
-class User(BaseMixin, DateAudit):
+class User(BaseMixin, DateAudit, db.Model):
   id = db.Column(db.Integer, primary_key=True)
   username = db.Column(db.String(64), index=True, unique=True)
   email = db.Column(db.String(256), index=True, unique=True)
@@ -26,13 +26,18 @@ class User(BaseMixin, DateAudit):
   def __repr__(self):
     return "<User {}>".format(self.username)
 
-  def set_password(self, password):
+  @property
+  def password(self):
+    raise AttributeError("password is not a readable attribute")
+  
+  @password.setter
+  def password(self, password):
     self.password_hash = generate_password_hash(password)
 
   def check_password(self, password):
     return check_password_hash(self.password_hash, password)
 
-  def avatar(self):
+  def get_avatar(self):
     if self.avatar is not None:
       return photos.url(self.avatar.path)
 
@@ -57,7 +62,7 @@ class User(BaseMixin, DateAudit):
       "username": self.username,
       "email": self.email,
       "bio": self.bio,
-      "avatar": self.avatar(),
+      "avatar": self.get_avatar(),
       "audit_dates": self.audit_dates(),
       "_links": {
         "posts": url_for("user_posts", username=self.username),
