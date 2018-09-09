@@ -1,12 +1,13 @@
 import jwt
 import re
-from flask import current_app, request, jsonify
+from functools import wraps
+from flask import current_app, request, jsonify, make_response, redirect
 from datetime import datetime, timedelta
 from app.models.blacklist_token import BlacklistToken
 from app import db
 
 
-def generate_token(user_id, expires_in=3600):
+def generate_token(user_id, expires_in=60):
   """Generate a JWT token
 
   :param user_id the user that will own the token
@@ -46,6 +47,8 @@ def verify_token(token):
 
   try:
     jwt.decode(token, secret_key, algoritms=["HS256"])
+  except jwt.ExpiredSignature:
+    raise
   except:
     return False
 
@@ -70,7 +73,46 @@ def login_required(f):
     if "auth_token" in request.cookies and verify_token(
         request.cookies.get("auth_token")):
       return f(*args, **kwargs)
-    
+
     return jsonify({"message": "please log in"}), 401
-  
+
+  return f_wrapper
+
+
+def user_not_logged(f):
+  """decorator to redirect if user is already logged in"""
+
+  @wraps(f)
+  def f_wrapper(*args, **kwargs):
+    if "auth_token" in request.cookies:
+      auth_token = request.cookies["auth_token"]
+      secret_key = current_app.config["JWT_SECRET_KEY"]
+
+      try:
+        jwt.decode(auth_token, secret_key, algorithms=["HS256"])
+        return redirect("/")
+      except jwt.ExpiredSignature:
+        if "refresh_token" in request.cookies and not is_token_revoked(
+            request.cookies["refresh_token"]):
+          try:
+            claims = jwt.decode(
+                request.cookies["refresh_token"],
+                secret_key,
+                algorithms=["HS256"])
+
+            response = make_response(redirect("/"))
+            response.set_cookie(
+                "auth_token",
+                generate_token(claims["user_id"]),
+                expires=datetime.utcnow() + timedelta(minutes=5),
+                httponly=True)
+
+            return response
+          except:
+            return f(*args, **kwargs)
+      except:
+        return f(*args, **kwargs)
+
+    return f(*args, **kwargs)
+
   return f_wrapper
