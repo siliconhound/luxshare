@@ -1,9 +1,11 @@
-from app import db
 from datetime import datetime, timedelta
-from app.auth.utils import verify_token, generate_token, INVALID_TOKEN
-from app.token.errors import (InvalidTokenError, TokenCompromisedError,
-                              RevokedTokenError)
+
 from flask import g
+
+from app import db
+from app.token.errors import (AccessTokenNotExpiredError, InvalidTokenError,
+                              RevokedTokenError, TokenCompromisedError)
+from app.token.utils import generate_token, is_token_expired, verify_token
 
 
 class RefreshToken(db.Model):
@@ -51,9 +53,22 @@ class RefreshToken(db.Model):
     return False
 
   @classmethod
-  def revoke_user_tokens(cls, user_id):
-    cls.update().where(cls.c.expires_at > datetime.utcnow()).values(
-        revoked=True)
+  def revoke_user_tokens(cls, refresh_token="", user_id=""):
+    user = user_id
+
+    if refresh_token:
+      token = cls.first(token=refresh_token)
+
+      if token is None:
+        return
+      
+      user = token.user_id
+    elif user_id:
+      user = user_id
+
+    cls.update().where(
+        cls.c.user_id == user,
+        cls.c.expires_at > datetime.utcnow()).values(revoked=True)
 
   @classmethod
   def generate_access_token(cls, refresh_token, access_token):
@@ -66,8 +81,10 @@ class RefreshToken(db.Model):
       raise RevokedTokenError()
 
     if _refresh_token.is_compromised(access_token):
-      cls.revoke_token(instance=_refresh_token)
       raise TokenCompromisedError()
+
+    if is_token_expired(g.jwt_claims["exp"]):
+      raise AccessTokenNotExpiredError()
 
     new_access_token = generate_token(g.jwt_claims["user_id"])
 

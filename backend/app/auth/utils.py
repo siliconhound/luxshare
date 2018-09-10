@@ -1,56 +1,14 @@
-import jwt
 import re
 from functools import wraps
-from flask import current_app, request, jsonify, make_response, redirect, g
-from datetime import datetime, timedelta
+
+from flask import g, jsonify, make_response, redirect, request
+
+from app import db
 from app.models.refresh_token import RefreshToken
 from app.token.errors import TokenCompromisedError
-from app import db
-from uuid import uuid4
+from app.token.utils import is_token_expired, verify_token
 
-INVALID_TOKEN = 0
-EXPIRED_TOKEN = 1
-VALID_TOKEN = 2
-
-def generate_csrf_token():
-  return str(uuid4())
-
-def generate_token(user_id, expires_in=60):
-  """Generate a JWT token
-
-  :param user_id the user that will own the token
-  :param expires_in expiration time in seconds
-  """
-  secret_key = current_app.config["JWT_SECRET_KEY"]
-  return jwt.encode(
-      {
-          "user_id": user_id,
-          "iat": datetime.utcnow(),
-          "exp": datetime.utcnow() + timedelta(seconds=expires_in)
-      },
-      secret_key,
-      algorithm="HS256").decode("utf-8")
-
-def is_token_expired(exp):
-  return datetime.strptime(exp, "%Y-%m-%d %H:%M:%S.%f") < datetime.utcnow()
-
-def verify_token(token):
-  """Token verification
-
-  :param token: token to verify
-  """
-
-  secret_key = current_app.config["JWT_SECRET_KEY"]
-
-  g.jwt_claims = {}
-
-  try:
-    g.jwt_claims = jwt.decode(
-        token, secret_key, algoritms=["HS256"], options={"verify_exp": False})
-  except:
-    return False
-
-  return True
+from .csrf import validate_csrf_token
 
 
 def is_email(string):
@@ -58,15 +16,25 @@ def is_email(string):
   return match is not None
 
 
-# TODO: change method
 def login_required(f):
+  """decorator for login required routes"""
 
+  @wraps(f)
   def f_wrapper(*args, **kwargs):
-    if "auth_token" in request.cookies and verify_token(
-        request.cookies.get("auth_token")):
-      return f(*args, **kwargs)
+    if not validate_csrf_token():
+      return jsonify({"message": "request compromised"}), 401
+    if "access_token" not in request.cookies:
+      return jsonify({"message": "invalid credentials"}), 401
 
-    return jsonify({"message": "please log in"}), 401
+    access_token = request.cookies["access_token"]
+
+    if not (access_token and verify_token(access_token)):
+      return jsonify({"message": "invalid credentials"}), 401
+
+    if is_token_expired(g.jwt_claims["exp"]):
+      return jsonify({"message": "expired access token"}), 401
+
+    return f(*args, **kwargs)
 
   return f_wrapper
 
@@ -90,12 +58,13 @@ def user_not_logged(f):
 
         try:
           token = RefreshToken.generate_access_token(refresh_token,
-                                                      access_token)
+                                                     access_token)
           db.session.commit()
           response = make_response(redirect("/"))
           response.set_cookie("access_token", token, httponly=True)
           return response
         except TokenCompromisedError:
+          RefreshToken.revoke_user_tokens(refresh_token)
           db.session.commit()
         except:
           return f(*args, **kwargs)

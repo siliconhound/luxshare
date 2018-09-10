@@ -6,3 +6,6 @@ class TokenCompromisedError(Exception):
 
 class RevokedTokenError(Exception):
     pass
+
+class AccessTokenNotExpiredError(Exception):
+    pass
