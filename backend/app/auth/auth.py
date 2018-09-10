@@ -1,5 +1,5 @@
 from flask import (jsonify, make_response, request, url_for, current_app,
-                   flash, redirect, render_template, get_flashed_messages)
+                   flash, redirect, render_template, get_flashed_messages, g)
 from sqlalchemy import or_
 from datetime import datetime, timedelta
 import jwt
@@ -10,7 +10,8 @@ from app.models.user import User
 from app.models.refresh_token import RefreshToken
 
 from . import bp
-from .utils import generate_token, verify_token, user_not_logged
+from .utils import (generate_token, verify_token, user_not_logged,
+                    generate_csrf_token, login_required)
 
 # TODO: Turn register and login routes into normal logins, so we can redirect
 # TODO: If user has auth token redirect from /register and /login
@@ -44,6 +45,7 @@ def register_user():
 
   response = make_response(redirect("/"))
 
+  csrf_token = generate_csrf_token()
   access_token = generate_token(user.username)
   refresh_token = RefreshToken(
       token=str(uuid4()).replace("-", ""), mapped_token=access_token)
@@ -51,7 +53,13 @@ def register_user():
   db.session.commit()
 
   response.set_cookie("access_token", access_token, httponly=True)
-  response.set_cookie("refresh_token", refresh_token, httponly=True)
+  response.set_cookie(
+      "refresh_token",
+      refresh_token,
+      expires=datetime.utcnow() + timedelta(days=7),
+      httponly=True)
+  response.set_cookie("x-csrf-token", csrf_token, httponly=True)
+  response.headers["x-csrf-token"] = csrf_token
 
   return response
 
@@ -83,6 +91,7 @@ def login():
   flash("login successful")
   response = make_response(redirect("/"))
 
+  csrf_token = generate_csrf_token()
   access_token = generate_token(user.username)
   refresh_token = RefreshToken(
       token=str(uuid4()).replace("-", ""), mapped_token=access_token)
@@ -90,22 +99,26 @@ def login():
   db.session.commit()
 
   response.set_cookie("access_token", access_token, httponly=True)
-  response.set_cookie("refresh_token", refresh_token, httponly=True)
+  response.set_cookie(
+      "refresh_token",
+      refresh_token,
+      expires=datetime.utcnow() + timedelta(days=7),
+      httponly=True)
+  response.set_cookie("x-csrf-token", csrf_token, httponly=True)
+  response.headers["x-csrf-token"] = csrf_token
 
   return response
 
 
 @bp.route("/logout", methods=["POST"])
+@login_required
 def logout():
 
-  if "refresh_token" in request.cookies:
-      revoked = RefreshToken.revoke_token(request.cookies["refresh_token"])
-      if revoked:
-        db.session.commit()
-
+  RefreshToken.revoke_user_tokens(g.jwt_claims["user_id"])
   response = make_response(jsonify({"message": "logout successful"}))
 
   response.set_cookie("auth_token", "", httponly=True)
   response.set_cookie("refresh_token", "", httponly=True)
+  response.set_cookie("x-csrf-token", "", httponly=True)
 
   return response

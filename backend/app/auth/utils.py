@@ -12,6 +12,8 @@ INVALID_TOKEN = 0
 EXPIRED_TOKEN = 1
 VALID_TOKEN = 2
 
+def generate_csrf_token():
+  return str(uuid4())
 
 def generate_token(user_id, expires_in=60):
   """Generate a JWT token
@@ -56,6 +58,7 @@ def is_email(string):
   return match is not None
 
 
+# TODO: change method
 def login_required(f):
 
   def f_wrapper(*args, **kwargs):
