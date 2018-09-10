@@ -3,13 +3,14 @@ from flask import (jsonify, make_response, request, url_for, current_app,
 from sqlalchemy import or_
 from datetime import datetime, timedelta
 import jwt
+from uuid import uuid4
 
 from app import db
 from app.models.user import User
+from app.models.refresh_token import RefreshToken
 
 from . import bp
-from .utils import (generate_token, is_token_revoked, revoke_token,
-                    verify_token, user_not_logged)
+from .utils import generate_token, verify_token, user_not_logged
 
 # TODO: Turn register and login routes into normal logins, so we can redirect
 # TODO: If user has auth token redirect from /register and /login
@@ -43,17 +44,14 @@ def register_user():
 
   response = make_response(redirect("/"))
 
-  response.set_cookie(
-      "auth_token",
-      generate_token(user.username),
-      expires=datetime.utcnow() + timedelta(minutes=5),
-      httponly=True)
+  access_token = generate_token(user.username)
+  refresh_token = RefreshToken(
+      token=str(uuid4()).replace("-", ""), mapped_token=access_token)
+  db.session.add(refresh_token)
+  db.session.commit()
 
-  response.set_cookie(
-      "refresh_token",
-      generate_token(user.username, 3600 * 24 * 7),
-      expires=datetime.utcnow() + timedelta(days=8),
-      httponly=True)
+  response.set_cookie("access_token", access_token, httponly=True)
+  response.set_cookie("refresh_token", refresh_token, httponly=True)
 
   return response
 
@@ -85,25 +83,25 @@ def login():
   flash("login successful")
   response = make_response(redirect("/"))
 
-  response.set_cookie(
-      "auth_token",
-      generate_token(user.username),
-      expires=datetime.utcnow() + timedelta(days=1),
-      httponly=True)
+  access_token = generate_token(user.username)
+  refresh_token = RefreshToken(
+      token=str(uuid4()).replace("-", ""), mapped_token=access_token)
+  db.session.add(refresh_token)
+  db.session.commit()
 
-  response.set_cookie(
-      "refresh_token",
-      generate_token(user.username, 3600 * 24 * 7),
-      expires=datetime.utcnow() + timedelta(minutes=5),
-      httponly=True)
+  response.set_cookie("access_token", access_token, httponly=True)
+  response.set_cookie("refresh_token", refresh_token, httponly=True)
 
   return response
 
 
 @bp.route("/logout", methods=["POST"])
 def logout():
+
   if "refresh_token" in request.cookies:
-    revoke_token(request.cookies["refresh_token"])
+      revoked = RefreshToken.revoke_token(request.cookies["refresh_token"])
+      if revoked:
+        db.session.commit()
 
   response = make_response(jsonify({"message": "logout successful"}))
 

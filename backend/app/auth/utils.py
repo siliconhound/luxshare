@@ -1,10 +1,16 @@
 import jwt
 import re
 from functools import wraps
-from flask import current_app, request, jsonify, make_response, redirect
+from flask import current_app, request, jsonify, make_response, redirect, g
 from datetime import datetime, timedelta
-from app.models.blacklist_token import BlacklistToken
+from app.models.refresh_token import RefreshToken
+from app.token.errors import TokenCompromisedError
 from app import db
+from uuid import uuid4
+
+INVALID_TOKEN = 0
+EXPIRED_TOKEN = 1
+VALID_TOKEN = 2
 
 
 def generate_token(user_id, expires_in=60):
@@ -17,23 +23,14 @@ def generate_token(user_id, expires_in=60):
   return jwt.encode(
       {
           "user_id": user_id,
+          "iat": datetime.utcnow(),
           "exp": datetime.utcnow() + timedelta(seconds=expires_in)
       },
       secret_key,
       algorithm="HS256").decode("utf-8")
 
-
-def is_token_revoked(token):
-  """Check if token has been rovoked
-
-  :param token: token to check
-  """
-  token = BlacklistToken.first(token=token)
-
-  if token is None:
-    return False
-  return True
-
+def is_token_expired(exp):
+  return datetime.strptime(exp, "%Y-%m-%d %H:%M:%S.%f") < datetime.utcnow()
 
 def verify_token(token):
   """Token verification
@@ -42,24 +39,16 @@ def verify_token(token):
   """
 
   secret_key = current_app.config["JWT_SECRET_KEY"]
-  if is_token_revoked(token):
-    return False
+
+  g.jwt_claims = {}
 
   try:
-    jwt.decode(token, secret_key, algoritms=["HS256"])
-  except jwt.ExpiredSignature:
-    raise
+    g.jwt_claims = jwt.decode(
+        token, secret_key, algoritms=["HS256"], options={"verify_exp": False})
   except:
     return False
 
   return True
-
-
-def revoke_token(token):
-  if not is_token_revoked(token):
-    token = BlacklistToken(token=token)
-    db.session.add(token)
-    db.session.commit()
 
 
 def is_email(string):
@@ -84,34 +73,29 @@ def user_not_logged(f):
 
   @wraps(f)
   def f_wrapper(*args, **kwargs):
-    if "auth_token" in request.cookies:
-      auth_token = request.cookies["auth_token"]
-      secret_key = current_app.config["JWT_SECRET_KEY"]
+    if "access_token" in request.cookies:
+      access_token = request.cookies["access_token"]
 
-      try:
-        jwt.decode(auth_token, secret_key, algorithms=["HS256"])
-        return redirect("/")
-      except jwt.ExpiredSignature:
-        if "refresh_token" in request.cookies and not is_token_revoked(
-            request.cookies["refresh_token"]):
-          try:
-            claims = jwt.decode(
-                request.cookies["refresh_token"],
-                secret_key,
-                algorithms=["HS256"])
-
-            response = make_response(redirect("/"))
-            response.set_cookie(
-                "auth_token",
-                generate_token(claims["user_id"]),
-                expires=datetime.utcnow() + timedelta(minutes=5),
-                httponly=True)
-
-            return response
-          except:
-            return f(*args, **kwargs)
-      except:
+      if verify_token(access_token):
         return f(*args, **kwargs)
+
+      if not is_token_expired(g.jwt_claims["exp"]):
+        return redirect("/")
+
+      if "refresh_token" in request.cookies:
+        refresh_token = request.cookies["refresh_token"]
+
+        try:
+          token = RefreshToken.generate_access_token(refresh_token,
+                                                      access_token)
+          db.session.commit()
+          response = make_response(redirect("/"))
+          response.set_cookie("access_token", token, httponly=True)
+          return response
+        except TokenCompromisedError:
+          db.session.commit()
+        except:
+          return f(*args, **kwargs)
 
     return f(*args, **kwargs)
 

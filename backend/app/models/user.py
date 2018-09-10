@@ -3,12 +3,14 @@ from .tables import followers
 from app import db, photos
 from flask import url_for
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime
 
 class User(BaseMixin, DateAudit, db.Model):
   id = db.Column(db.Integer, primary_key=True)
   username = db.Column(db.String(64), index=True, unique=True)
   email = db.Column(db.String(256), index=True, unique=True)
   password_hash = db.Column(db.String(128))
+  logged_out = db.Column(db.DateTime(), default=datetime.utcnow())
   picture_id = db.Column(db.Integer, db.ForeignKey("picture.id"))
   avatar = db.relationship("Picture", backref=db.backref("user", uselist=False))
   posts = db.relationship("Post", backref="author", lazy="dynamic")
