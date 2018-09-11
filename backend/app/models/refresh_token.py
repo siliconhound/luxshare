@@ -3,12 +3,13 @@ from datetime import datetime, timedelta
 from flask import g
 
 from app import db
+from app.models.common import BaseMixin
 from app.token.errors import (AccessTokenNotExpiredError, InvalidTokenError,
                               RevokedTokenError, TokenCompromisedError)
 from app.token.utils import generate_token, is_token_expired, verify_token
 
 
-class RefreshToken(db.Model):
+class RefreshToken(db.Model, BaseMixin):
   token = db.Column(db.String(256), primary_key=True)
   issued_at = db.Column(db.DateTime(), default=datetime.utcnow())
   expires_at = db.Column(
@@ -61,14 +62,14 @@ class RefreshToken(db.Model):
 
       if token is None:
         return
-      
+
       user = token.user_id
     elif user_id:
       user = user_id
 
-    cls.update().where(
-        cls.c.user_id == user,
-        cls.c.expires_at > datetime.utcnow()).values(revoked=True)
+    cls.update().where(cls.c.user_id == user,
+                       cls.c.expires_at > datetime.utcnow(),
+                       cls.c.revoked == False).values(revoked=True)
 
   @classmethod
   def generate_access_token(cls, refresh_token, access_token):

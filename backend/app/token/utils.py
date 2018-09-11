@@ -62,6 +62,14 @@ def set_session_tokens(response, username):
   :param username: user username to attach to jwt
   """
 
+  user_has_tokens = RefreshToken.query.where(
+      RefreshToken.c.user_id == username,
+      RefreshToken.c.expires_at > datetime.utcnow(),
+      RefreshToken.c.revoked == False).first()
+  if user_has_tokens is not None:
+    RefreshToken.revoke_user_tokens(user_id=username)
+    return
+
   access_token = generate_token(username)
   refresh_token = RefreshToken(token=str(uuid4()), mapped_token=access_token)
   db.session.add(refresh_token)
