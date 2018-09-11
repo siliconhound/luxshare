@@ -15,6 +15,7 @@ class RefreshToken(db.Model, BaseMixin):
   expires_at = db.Column(
       db.DateTime(), default=datetime.utcnow() + timedelta(days=7))
   mapped_token = db.Column(db.String(512))
+  user_id = db.Column(db.String(256))
   revoked = db.Column(db.Boolean(), default=False)
 
   def __repr__(self):
@@ -48,10 +49,8 @@ class RefreshToken(db.Model, BaseMixin):
     else:
       _token = cls.first(token=token)
 
-    if _token is not None and not _token.is_valid():
+    if _token is not None and _token.is_valid():
       _token.revoked = True
-      return True
-    return False
 
   @classmethod
   def revoke_user_tokens(cls, refresh_token="", user_id=""):
@@ -67,9 +66,9 @@ class RefreshToken(db.Model, BaseMixin):
     elif user_id:
       user = user_id
 
-    cls.update().where(cls.c.user_id == user,
-                       cls.c.expires_at > datetime.utcnow(),
-                       cls.c.revoked == False).values(revoked=True)
+    cls.update().where(cls.user_id == user,
+                       cls.expires_at > datetime.utcnow(),
+                       cls.revoked == False).values(revoked=True)
 
   @classmethod
   def generate_access_token(cls, refresh_token, access_token):
@@ -84,7 +83,7 @@ class RefreshToken(db.Model, BaseMixin):
     if _refresh_token.is_compromised(access_token):
       raise TokenCompromisedError()
 
-    if is_token_expired(g.jwt_claims["exp"]):
+    if not is_token_expired(g.jwt_claims["exp"]):
       raise AccessTokenNotExpiredError()
 
     new_access_token = generate_token(g.jwt_claims["user_id"])

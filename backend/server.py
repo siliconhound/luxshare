@@ -8,6 +8,7 @@ from app.models.hashtag import Hashtag
 from app.models.picture import Picture
 from app.models.post import Post
 from app.models.user import User
+from app.models.refresh_token import RefreshToken
 
 
 
@@ -19,5 +20,6 @@ def make_shell_context():
     "User": User,
     "Comment": Comment,
     "Hashtag": Hashtag,
-    "Picture": Picture
+    "Picture": Picture,
+    "RefreshToken": RefreshToken
   }

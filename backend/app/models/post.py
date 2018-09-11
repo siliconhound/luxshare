@@ -1,9 +1,10 @@
 from app import db
 from .common import BaseMixin, DateAudit
-from .tables import post_hashtag, tagged_users
+from .tables import hashtag_posts, tagged_users
 
 
 class Post(BaseMixin, DateAudit, db.Model):
+  __tablename__ = "post"
   id = db.Column(db.Integer, primary_key=True)
   public_id = db.Column(db.String(256), index=True, unique=True)
   title = db.Column(db.String(256), index=True)
@@ -18,7 +19,7 @@ class Post(BaseMixin, DateAudit, db.Model):
       lazy="dynamic")
   hashtags = db.relationship(
       "Hashtag",
-      secondary=post_hashtag,
+      secondary=hashtag_posts,
       backref=db.backref("posts", lazy="dynamic"),
       lazy="dynamic")
 

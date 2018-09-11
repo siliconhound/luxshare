@@ -18,6 +18,8 @@ def validate_csrf_token():
   cookie_csrf_token = request.cookies["x-csrf-token"]
   header_csrf_token = request.headers["x-csrf-token"]
 
+  print(f"cookie {cookie_csrf_token} | header {header_csrf_token}")
+
   if not (cookie_csrf_token and header_csrf_token):
     return False
 
@@ -27,18 +29,13 @@ def validate_csrf_token():
   return True
 
 
-def set_csrf_token(response):
-  """Sets CSRF token to header and cookie
+def set_csrf_token_cookie(response, csrf_token):
+  """Sets CSRF token to cookie
 
   :param response: response object
   """
-
-  csrf_token = generate_csrf_token()
-
   response.set_cookie(
       "x-csrf-token",
       csrf_token,
       httponly=True,
       expires=datetime.utcnow() + timedelta(days=7))
-
-  response.headers["x-csrf-token"] = csrf_token

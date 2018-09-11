@@ -47,7 +47,7 @@ def user_not_logged(f):
     if "access_token" in request.cookies:
       access_token = request.cookies["access_token"]
 
-      if verify_token(access_token):
+      if not verify_token(access_token):
         return f(*args, **kwargs)
 
       if not is_token_expired(g.jwt_claims["exp"]):
@@ -55,19 +55,20 @@ def user_not_logged(f):
 
       if "refresh_token" in request.cookies:
         refresh_token = request.cookies["refresh_token"]
-
+        token = ""
         try:
           token = RefreshToken.generate_access_token(refresh_token,
                                                      access_token)
           db.session.commit()
-          response = make_response(redirect("/"))
-          response.set_cookie("access_token", token, httponly=True)
-          return response
         except TokenCompromisedError:
           RefreshToken.revoke_user_tokens(refresh_token)
           db.session.commit()
         except:
           return f(*args, **kwargs)
+
+        response = make_response(redirect("/"))
+        response.set_cookie("access_token", token, httponly=True)
+        return response
 
     return f(*args, **kwargs)
 

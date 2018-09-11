@@ -13,11 +13,11 @@ def refresh_access_token():
   if not validate_csrf_token():
     return jsonify({"message": "request compromised"}), 401
 
-  if not ("refresh_token" in request.cookie and "access_token"):
+  if not ("refresh_token" in request.cookies and "access_token"):
     return jsonify({"message": "invalid tokens"}), 401
 
-  access_token = request.cookie["access_token"]
-  refresh_token = request.cookie["refresh_token"]
+  access_token = request.cookies["access_token"]
+  refresh_token = request.cookies["refresh_token"]
 
   if not (access_token and refresh_token):
     return jsonify({"message": "invalid tokens"}), 401
@@ -38,9 +38,12 @@ def refresh_access_token():
     return jsonify({"message": "compromised refresh token"}), 401
   except TokenError.AccessTokenNotExpiredError:
     RefreshToken.revoke_token(refresh_token)
+    db.session.commit()
     return jsonify({
         "message": "user might be compromised, access revoked"
     }), 401
 
   response = make_response(jsonify({"message": "new access token generated"}))
   response.set_cookie("access_token", new_access_token, httponly=True)
+
+  return response
