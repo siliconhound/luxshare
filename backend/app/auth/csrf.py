@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
 from uuid import uuid4
+from functools import wraps
 
-from flask import request
+from flask import request, jsonify
 
 
 def generate_csrf_token():
@@ -39,3 +40,15 @@ def set_csrf_token_cookie(response, csrf_token):
       csrf_token,
       httponly=True,
       expires=datetime.utcnow() + timedelta(days=7))
+
+def csrf_token_required(f):
+
+  @wraps(f)
+  def f_wrapper(*args, **kwargs):
+
+    if not validate_csrf_token():
+      return jsonify({"message": "unauthorized"}), 401
+
+    return f(*args, **kwargs)
+  
+  return f_wrapper

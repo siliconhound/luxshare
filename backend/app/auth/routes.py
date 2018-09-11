@@ -9,6 +9,7 @@ from app.token.common import set_session_tokens
 
 from . import bp
 from .utils import login_required, user_not_logged 
+from .csrf import csrf_token_required
 
 @bp.route("/register", methods=["GET", "POST"])
 @user_not_logged
@@ -20,12 +21,22 @@ def register_user():
   username = request.form["username"]
   email = request.form["email"]
   password = request.form["password"]
+  confirm_password = request.form["confirm_password"]
 
   #TODO: validate data
-  user = User.first(username=username)
+  user_username = User.first(username=username)
+  user_email = User.first(email=email)
 
-  if user is not None:
-    flash(f"user {username} has already been registered")
+  if user_username is not None:
+    flash(f"{username} has already been registered")
+    return redirect(url_for("auth.register_user")), 422
+
+  if user_email is not None:
+    flash(f"{email} has already been registered")
+    return redirect(url_for("auth.register_user")), 422
+  
+  if password != confirm_password:
+    flash("passwords don't match")
     return redirect(url_for("auth.register_user")), 422
 
   try:
@@ -41,9 +52,12 @@ def register_user():
   return response
 
 
-@bp.route("/login", methods=["POST"])
+@bp.route("/login", methods=["POST", "GET"])
 @user_not_logged
 def login():
+  if request.method == "GET":
+    return render_template("login.html", messages=get_flashed_messages())
+
   id = request.form["id"]
   password = request.form["password"]
 
@@ -71,6 +85,7 @@ def login():
 
 
 @bp.route("/logout", methods=["POST"])
+@csrf_token_required
 @login_required
 def logout():
   RefreshToken.revoke_user_tokens(g.jwt_claims["user_id"])

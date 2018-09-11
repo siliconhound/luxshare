@@ -2,6 +2,7 @@ from app import db
 from .common import BaseMixin, DateAudit
 
 class Comment(BaseMixin, DateAudit, db.Model):
+  __tablename__ = "comment"
   id = db.Column(db.Integer, primary_key=True)
   public_id = db.Column(db.String(256), index=True, unique=True)
   body = db.Column(db.String(256))
