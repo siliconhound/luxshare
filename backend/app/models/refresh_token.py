@@ -1,10 +1,7 @@
 from datetime import datetime, timedelta
 
-from flask import g
-
 from app import db
 from app.models.common import BaseMixin
-from app.token.utils import verify_token
 
 
 class RefreshToken(db.Model, BaseMixin):

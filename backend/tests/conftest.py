@@ -5,7 +5,7 @@ from app import create_app, db
 from config import Config
 
 
-@pytest.fixture
+@pytest.fixture()
 def app():
     db_fd, db_path = tempfile.mkstemp()
 
