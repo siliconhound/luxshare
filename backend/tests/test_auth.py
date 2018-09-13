@@ -1,4 +1,4 @@
-from flask import request, g
+from flask import g
 
 from app.models.user import User
 from helpers import get_cookie

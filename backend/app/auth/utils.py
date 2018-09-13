@@ -25,7 +25,7 @@ def login_required(f):
 
         access_token = request.cookies["access_token"]
 
-        if not (access_token and verify_token(access_token)):
+        if not verify_token(access_token):
             return jsonify({"message": "invalid credentials"}), 401
 
         if is_token_expired(g.jwt_claims["exp"]):
