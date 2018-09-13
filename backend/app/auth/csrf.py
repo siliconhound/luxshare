@@ -19,8 +19,6 @@ def validate_csrf_token():
   cookie_csrf_token = request.cookies["x-csrf-token"]
   header_csrf_token = request.headers["x-csrf-token"]
 
-  print(f"cookie {cookie_csrf_token} | header {header_csrf_token}")
-
   if not (cookie_csrf_token and header_csrf_token):
     return False
 

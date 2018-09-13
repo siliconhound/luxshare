@@ -28,8 +28,6 @@ def refresh_access_token():
         db.session.commit()
     except TokenError.InvalidTokenError:
         return jsonify({"message": "invalid token provided"}), 401
-    except TokenError.RevokedTokenError:
-        return jsonify({"message": "refresh token has been revoked"}), 401
     except TokenError.TokenCompromisedError:
         RefreshToken.revoke_token(refresh_token)
         db.session.commit()

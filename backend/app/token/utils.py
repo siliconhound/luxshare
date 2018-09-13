@@ -1,13 +1,11 @@
 from datetime import datetime, timedelta
-from uuid import uuid4
 from calendar import timegm
 
 import jwt
 from flask import current_app, g
 
-from app import db
 from app.token.errors import (AccessTokenNotExpiredError, InvalidTokenError,
-                              RevokedTokenError, TokenCompromisedError)
+                              TokenCompromisedError)
 from app.models.refresh_token import RefreshToken
 
 
@@ -64,11 +62,9 @@ def verify_token(token):
 def generate_access_token(refresh_token, access_token):
     _refresh_token = RefreshToken.first(token=refresh_token)
 
-    if _refresh_token is None or not verify_token(access_token):
+    if _refresh_token is None or not (_refresh_token.is_valid() and
+                                      verify_token(access_token)):
         raise InvalidTokenError()
-
-    if _refresh_token.revoked:
-        raise RevokedTokenError()
 
     if _refresh_token.is_compromised(access_token):
         raise TokenCompromisedError()
