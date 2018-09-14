@@ -10,6 +10,7 @@ def app():
     db_fd, db_path = tempfile.mkstemp()
 
     class TestConfig(Config):
+        TESTING = True
         SECRET_KEY = "you-will-never-guess"
         JWT_SECRET_KEY = "super-secret-key"
         SQLALCHEMY_DATABASE_URI = f"sqlite:///{db_path}"
