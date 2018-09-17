@@ -2,10 +2,10 @@ from flask import g
 
 from app.models.user import User
 from helpers import get_cookie
-from app.auth.utils import verify_token, is_token_expired
 from app.models.refresh_token import RefreshToken
 from app.auth.csrf import generate_csrf_token
 from app import db
+from app.token_schema import decode_jwt
 
 
 def test_register(app, client):
@@ -19,14 +19,14 @@ def test_register(app, client):
             "confirm_password": "test"
         })
 
-    assert response.status_code == 302
+    assert response.status_code == 200
 
     access_token = get_cookie(response, "access_token")
     refresh_token = get_cookie(response, "refresh_token")
 
     with app.app_context():
-        assert verify_token(access_token) and not is_token_expired(
-            g.jwt_claims["exp"])
+        decode_jwt(access_token, app.config["JWT_SECRET"],
+                   app.config["JWT_ALGORITHM"])
         refresh_token_instance = RefreshToken.first(token=refresh_token)
         assert refresh_token_instance.is_valid()
 
@@ -46,9 +46,11 @@ def test_login(app, client):
             "password": "test"
         })
 
-    assert response.status_code == 302
+    assert response.status_code == 200
     assert get_cookie(response, "refresh_token")
     assert get_cookie(response, "access_token")
+    assert get_cookie(response, "x-csrf-token", flags=["HttpOnly"])
+    assert get_cookie(response, "x-csrf-token", except_flags=["HttpOnly"])
 
 
 def test_logout(app, client):

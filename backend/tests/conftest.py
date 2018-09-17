@@ -3,6 +3,7 @@ import tempfile
 import os
 from app import create_app, db
 from config import Config
+from datetime import timedelta
 
 
 @pytest.fixture()
@@ -12,7 +13,11 @@ def app():
     class TestConfig(Config):
         TESTING = True
         SECRET_KEY = "you-will-never-guess"
-        JWT_SECRET_KEY = "super-secret-key"
+        JWT_SECRET = "super-secret-key"
+        JWT_ALGORITHM = "HS256"
+        CSRF_COOKIE_NAME = "x-csrf-token"
+        REFRESH_TOKEN_DURATION = timedelta(days=30)
+        SECURE_TOKEN_COOKIES = False
         SQLALCHEMY_DATABASE_URI = f"sqlite:///{db_path}"
         SQLALCHEMY_TRACK_MODIFICATIONS = False
 

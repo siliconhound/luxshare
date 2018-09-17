@@ -5,7 +5,6 @@ from app import db
 from app.auth.csrf import generate_csrf_token
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
-from app.token.utils import generate_token
 
 from helpers import get_cookie
 

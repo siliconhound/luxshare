@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 
 from app import db
 from app.models.common import BaseMixin
+from sqlalchemy import and_
 
 
 class RefreshToken(db.Model, BaseMixin):
@@ -48,7 +49,7 @@ class RefreshToken(db.Model, BaseMixin):
             _token.revoked = True
 
     @classmethod
-    def revoke_user_tokens(cls, refresh_token="", user_id=""):
+    def revoke_user_tokens(cls, user_id="", refresh_token=""):
         user = user_id
 
         if refresh_token:
@@ -60,7 +61,7 @@ class RefreshToken(db.Model, BaseMixin):
             user = token.user_id
         elif user_id:
             user = user_id
-
-        cls.update().where(cls.user_id == user,
-                           cls.expires_at > datetime.utcnow(),
-                           cls.revoked == False).values(revoked=True)
+        table = cls.__table__
+        table.update().where(and_(table.c.user_id == user,
+                           table.c.expires_at > datetime.utcnow(),
+                           table.c.revoked == False)).values(revoked=True)

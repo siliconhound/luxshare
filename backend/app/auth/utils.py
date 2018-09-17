@@ -1,39 +1,13 @@
 import re
 from functools import wraps
 
-from flask import g, jsonify, make_response, redirect, request
+from flask import g, jsonify, make_response, redirect, request, current_app
+from jwt import PyJWTError, ExpiredSignatureError
 
 from app import db
 from app.models.refresh_token import RefreshToken
-from app.token.errors import TokenCompromisedError, AccessTokenNotExpiredError, InvalidTokenError
-from app.token.utils import (is_token_expired, verify_token,
-                             generate_access_token)
-
-
-def is_email(string):
-    match = re.match(r"[^@]+@[^@]+\.[^@]+", string)
-    return match is not None
-
-
-def login_required(f):
-    """decorator for login required routes"""
-
-    @wraps(f)
-    def f_wrapper(*args, **kwargs):
-        if "access_token" not in request.cookies:
-            return jsonify({"message": "invalid credentials"}), 401
-
-        access_token = request.cookies["access_token"]
-
-        if not verify_token(access_token):
-            return jsonify({"message": "invalid credentials"}), 401
-
-        if is_token_expired(g.jwt_claims["exp"]):
-            return jsonify({"message": "expired access token"}), 401
-
-        return f(*args, **kwargs)
-
-    return f_wrapper
+from app.token_schema import (get_access_token_from_cookie,
+                              get_refresh_token_from_cookie, decode_jwt)
 
 
 def user_not_logged(f):
@@ -41,26 +15,18 @@ def user_not_logged(f):
 
     @wraps(f)
     def f_wrapper(*args, **kwargs):
-        if "access_token" in request.cookies:
-            access_token = request.cookies["access_token"]
+        try:
+            access_token = get_access_token_from_cookie()
+        except KeyError:
+            return f(*args, **kwargs)
 
-            if "refresh_token" in request.cookies:
-                refresh_token = request.cookies["refresh_token"]
-                token = ""
-                try:
-                    token = generate_access_token(refresh_token, access_token)
-                    db.session.commit()
-                except TokenCompromisedError:
-                    RefreshToken.revoke_user_tokens(refresh_token)
-                    db.session.commit()
-                except InvalidTokenError:
-                    return f(*args, **kwargs)
-                except AccessTokenNotExpiredError:
-                    return redirect("/")
-
-                response = make_response(redirect("/"))
-                response.set_cookie("access_token", token, httponly=True)
-                return response
+        try:
+            decode_jwt(access_token, current_app.config["JWT_SECRET"],
+                       current_app.config["JWT_ALGORITHM"])
+        except ExpiredSignatureError:
+            return jsonify({"message": "user already logged in"}), 403
+        except PyJWTError:
+            return f(*args, **kwargs)
 
         return f(*args, **kwargs)
 
