@@ -34,7 +34,7 @@ def refresh_access_token():
     except TokensCompromisedError:
         RefreshToken.revoke_token(refresh_token)
         db.session.commit()
-        return jsonify({"message": "compromised refresh token"}), 401
+        return jsonify({"message": "compromised tokens"}), 401
 
     response = make_response(
         jsonify({

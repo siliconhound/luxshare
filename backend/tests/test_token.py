@@ -5,6 +5,7 @@ from app import db
 from app.auth.csrf import generate_csrf_token
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
+from app.token_schema import create_access_token, encode_jwt
 
 from helpers import get_cookie
 
@@ -13,7 +14,9 @@ def test_refresh_token(app, client):
     with app.app_context():
         user = User(username="test", email="test@example.com", password="test")
         db.session.add(user)
-        access_token = generate_token(user.username, expires_in=-60)
+        access_token = encode_jwt(
+            app.config["JWT_SECRET"], app.config["JWT_ALGORITHM"],
+            timedelta(seconds=-60), {"user_id": user.username})
         refresh_token = RefreshToken(
             token=str(uuid4()),
             user_id=user.username,
@@ -40,7 +43,9 @@ def test_revoked_refresh_token(app, client):
     with app.app_context():
         user = User(username="test", email="test@example.com", password="test")
         db.session.add(user)
-        access_token = generate_token(user.username, expires_in=-60)
+        access_token = encode_jwt(
+            app.config["JWT_SECRET"], app.config["JWT_ALGORITHM"],
+            timedelta(seconds=-60), {"user_id": user.username})
         refresh_token = RefreshToken(
             token=str(uuid4()),
             user_id=user.username,
@@ -61,7 +66,7 @@ def test_revoked_refresh_token(app, client):
         "/token/refresh_access_token", headers={"x-csrf-token": csrf_token})
 
     assert response.status_code == 401
-    assert response.get_json()["message"] == "invalid token provided"
+    assert response.get_json()["message"] == "compromised tokens"
 
 
 def test_compromised_refresh_token(app, client):
@@ -69,7 +74,7 @@ def test_compromised_refresh_token(app, client):
     with app.app_context():
         user = User(username="test", email="test@example.com", password="test")
         db.session.add(user)
-        access_token = generate_token(user.username)
+        access_token = create_access_token(user.username)
         refresh_token = RefreshToken(
             token=str(uuid4()),
             user_id=user.username,
@@ -78,14 +83,16 @@ def test_compromised_refresh_token(app, client):
         db.session.commit()
 
         refresh_token = refresh_token.token
-        attacker_refresh_token = generate_token("test", expires_in=-60)
+        attacker_access_token = encode_jwt(
+            app.config["JWT_SECRET"], app.config["JWT_ALGORITHM"],
+            timedelta(seconds=-60), {"user_id": user.username})
 
     csrf_token = generate_csrf_token()
 
     # attacker request
     client.set_cookie("localhost", "x-csrf-token", csrf_token, httponly=True)
     client.set_cookie(
-        "localhost", "access_token", attacker_refresh_token, httponly=True)
+        "localhost", "access_token", attacker_access_token, httponly=True)
     client.set_cookie(
         "localhost", "refresh_token", refresh_token, httponly=True)
 
@@ -93,14 +100,14 @@ def test_compromised_refresh_token(app, client):
         "/token/refresh_access_token", headers={"x-csrf-token": csrf_token})
 
     assert response.status_code == 401
-    assert response.get_json()["message"] == "compromised refresh token"
+    assert response.get_json()["message"] == "compromised tokens"
 
 
 def test_invalid_token(app, client):
     with app.app_context():
         user = User(username="test", email="test@example.com", password="test")
         db.session.add(user)
-        access_token = generate_token(user.username, expires_in=-60)
+        access_token = "asdfasdfasfd"
         refresh_token = RefreshToken(
             token=str(uuid4()),
             user_id=user.username,
@@ -134,11 +141,7 @@ def test_invalid_token(app, client):
     csrf_token = generate_csrf_token()
 
     client.set_cookie("localhost", "x-csrf-token", csrf_token, httponly=True)
-    client.set_cookie(
-        "localhost",
-        "access_token",
-        access_token[:int(len(access_token) / 2)],
-        httponly=True)
+    client.set_cookie("localhost", "access_token", access_token, httponly=True)
     client.set_cookie(
         "localhost", "refresh_token", refresh_token, httponly=True)
 
@@ -146,14 +149,16 @@ def test_invalid_token(app, client):
         "/token/refresh_access_token", headers={"x-csrf-token": csrf_token})
 
     assert response.status_code == 401
-    assert response.get_json()["message"] == "invalid token provided"
+    assert response.get_json()["message"] == "compromised tokens"
 
 
 def test_expired_access_token(app, client):
     with app.app_context():
         user = User(username="test", email="test@example.com", password="test")
         db.session.add(user)
-        access_token = generate_token(user.username, expires_in=-60)
+        access_token = encode_jwt(
+            app.config["JWT_SECRET"], app.config["JWT_ALGORITHM"],
+            timedelta(seconds=-60), {"user_id": user.username})
         refresh_token = RefreshToken(
             token=str(uuid4()),
             user_id=user.username,
@@ -170,6 +175,6 @@ def test_expired_access_token(app, client):
     client.set_cookie(
         "localhost", "refresh_token", refresh_token, httponly=True)
 
-    response = client.get("/", headers={"x-csrf-token": csrf_token})
+    response = client.post("/auth/logout", headers={"x-csrf-token": csrf_token})
     assert response.status_code == 401
     assert response.get_json()["message"] == "expired access token"
