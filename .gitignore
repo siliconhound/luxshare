@@ -59,3 +59,30 @@ typings/
 
 # next.js build output
 .next
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Editors
+.vscode/
+.idea/
+
+# Database
+app.db
+
+# Others
+static/
+.ycm_extra_conf.py
+.style.yapf
+.pytest_cache/
